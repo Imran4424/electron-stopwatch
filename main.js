@@ -7,7 +7,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 380,
     height: 520,
-    resizable: false,
+    resizable: true,
     titleBarStyle: 'hiddenInset',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
     webPreferences: {
