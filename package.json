@@ -1,0 +1,20 @@
+{
+  "name": "stopwatch",
+  "version": "1.0.0",
+  "description": "A simple Electron stopwatch",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "pack:win": "npx electron-builder --win",
+    "pack:mac": "npx electron-builder --mac",
+    "pack:linux": "npx electron-builder --linux"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "electron": "^38.2.1"
+  }
+}
