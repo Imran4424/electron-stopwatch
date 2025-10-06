@@ -11,8 +11,8 @@
     "pack:linux": "npx electron-builder --linux"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "SHAH MD IMRAN HOSSAIN",
+  "license": "MIT",
   "description": "",
   "devDependencies": {
     "electron": "^38.2.1"
