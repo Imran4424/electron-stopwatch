@@ -1,122 +1,129 @@
-const timeEl = document.getElementById('time');
-const startPauseBtn = document.getElementById('startPauseBtn');
-const lapBtn = document.getElementById('lapBtn');
-const resetBtn = document.getElementById('resetBtn');
-const lapsEl = document.getElementById('laps');
-const alwaysOnTopEl = document.getElementById('alwaysOnTop');
-
 // Stopwatch state
-let running = false;
-let startHighRes = 0;      // performance.now() at last start
-let carriedMs = 0;         // accumulated ms when paused
-let rafId = null;
-let laps = [];
+                let running = false;
+                let startTime = 0;
+                let elapsed = 0;
+                let lapTimes = [];
+                let animFrame;
 
-const formatTime = (ms) => {
-  const totalMs = Math.max(0, Math.round(ms));
-  const minutes = Math.floor(totalMs / 60000);
-  const seconds = Math.floor((totalMs % 60000) / 1000);
-  const millis  = totalMs % 1000;
-  return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.${String(millis).padStart(3,'0')}`;
-};
+                const timeEl = document.getElementById('time');
+                const timeSubEl = document.getElementById('time-sub');
+                const startPauseBtn = document.getElementById('startPauseBtn');
+                const lapBtn = document.getElementById('lapBtn');
+                const resetBtn = document.getElementById('resetBtn');
+                const lapsEl = document.getElementById('laps');
+                const clearLapsBtn = document.getElementById('clearLaps');
+                const ringFg = document.getElementById('ring-fg');
 
-function render() {
-  const elapsed = running ? carriedMs + (performance.now() - startHighRes) : carriedMs;
-  timeEl.textContent = formatTime(elapsed);
-}
+                function formatTime(ms) {
+                        const totalSec = Math.floor(ms / 1000);
+                        const min = Math.floor(totalSec / 60);
+                        const sec = totalSec % 60;
+                        const milli = ms % 1000;
+                        return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(milli).padStart(3, '0')}`;
+                }
 
-function tick() {
-  render();
-  rafId = requestAnimationFrame(tick);
-}
+                function formatSubTime(ms) {
+                        const totalSec = Math.floor(ms / 1000);
+                        const min = Math.floor(totalSec / 60);
+                        const sec = totalSec % 60;
+                        return `${String(min).padStart(2, '0')}m : ${String(sec).padStart(2, '0')}s`;
+                }
 
-function start() {
-  if (running) return;
-  running = true;
-  startHighRes = performance.now();
-  startPauseBtn.textContent = 'Pause';
-  if (!rafId) tick();
-  persist();
-}
+                function updateDisplay() {
+                        const current = running ? Date.now() - startTime + elapsed : elapsed;
+                        timeEl.textContent = formatTime(current);
+                        timeSubEl.textContent = formatSubTime(current);
 
-function pause() {
-  if (!running) return;
-  running = false;
-  carriedMs += performance.now() - startHighRes;
-  startPauseBtn.textContent = 'Resume';
-  cancelAnimationFrame(rafId);
-  rafId = null;
-  render();
-  persist();
-}
+                        // Update ring (60 second cycle)
+                        const seconds = (current / 1000) % 60;
+                        const offset = 603 - (seconds / 60) * 603;
+                        ringFg.style.strokeDashoffset = offset;
 
-function reset() {
-  running = false;
-  startHighRes = 0;
-  carriedMs = 0;
-  laps = [];
-  startPauseBtn.textContent = 'Start';
-  cancelAnimationFrame(rafId);
-  rafId = null;
-  render();
-  renderLaps();
-  persist();
-}
+                        if (running) {
+                                animFrame = requestAnimationFrame(updateDisplay);
+                        }
+                }
 
-function lap() {
-  const elapsed = running ? carriedMs + (performance.now() - startHighRes) : carriedMs;
-  const last = laps.length ? laps[laps.length - 1].elapsed : 0;
-  const split = elapsed - last;
-  laps.push({ index: laps.length + 1, elapsed, split });
-  renderLaps();
-  persist();
-}
+                function toggleStartPause() {
+                        running = !running;
+                        if (running) {
+                                startTime = Date.now();
+                                document.body.classList.add('running');
+                                startPauseBtn.querySelector('.icon').textContent = '⏸';
+                                startPauseBtn.querySelector('.txt').textContent = 'Pause';
+                                updateDisplay();
+                        } else {
+                                elapsed += Date.now() - startTime;
+                                document.body.classList.remove('running');
+                                startPauseBtn.querySelector('.icon').textContent = '▶';
+                                startPauseBtn.querySelector('.txt').textContent = 'Resume';
+                                cancelAnimationFrame(animFrame);
+                                updateDisplay();
+                        }
+                }
 
-function renderLaps() {
-  lapsEl.innerHTML = '';
-  for (const l of laps.slice().reverse()) {
-    const li = document.createElement('li');
-    li.textContent = `#${l.index}  Split: ${formatTime(l.split)}   Total: ${formatTime(l.elapsed)}`;
-    lapsEl.appendChild(li);
-  }
-}
+                function recordLap() {
+                        if (!running && elapsed === 0) return;
 
-// Controls
-startPauseBtn.addEventListener('click', () => (running ? pause() : start()));
-lapBtn.addEventListener('click', () => lap());
-resetBtn.addEventListener('click', () => reset());
+                        const current = running ? Date.now() - startTime + elapsed : elapsed;
+                        const prevTotal = lapTimes.length > 0 ? lapTimes[lapTimes.length - 1].total : 0;
+                        const split = current - prevTotal;
 
-// Keyboard shortcuts (when window focused)
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') { e.preventDefault(); running ? pause() : start(); }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'l') { e.preventDefault(); lap(); }
-});
+                        lapTimes.push({ split, total: current });
+                        renderLaps();
+                }
 
-// Menu/tray hotkeys from main
-window.stopwatchAPI.onToggle(() => (running ? pause() : start()));
-window.stopwatchAPI.onLap(() => lap());
+                function renderLaps() {
+                        lapsEl.innerHTML = '';
+                        lapTimes.forEach((lap, i) => {
+                                const li = document.createElement('li');
+                                li.innerHTML = `
+                    <div class="idx">#${i + 1}</div>
+                    <div>
+                        <div class="meta">Split</div>
+                        <div class="split">${formatTime(lap.split)}</div>
+                    </div>
+                    <div>
+                        <div class="meta">Total</div>
+                        <div class="total">${formatTime(lap.total)}</div>
+                    </div>
+                `;
+                                lapsEl.appendChild(li);
+                        });
+                }
 
-// Persist minimal UI state to main (in-memory for demo)
-async function restore() {
-  const st = await window.stopwatchAPI.getPersist();
-  if (st) {
-    laps = st.laps ?? [];
-    carriedMs = st.elapsedMs ?? 0;
-    running = false; // always start paused on restore
-    render();
-    renderLaps();
-  }
-}
-function persist() {
-  const elapsed = running ? carriedMs + (performance.now() - startHighRes) : carriedMs;
-  window.stopwatchAPI.setPersist({ laps, elapsedMs: elapsed, running: false });
-}
+                function reset() {
+                        running = false;
+                        elapsed = 0;
+                        startTime = 0;
+                        document.body.classList.remove('running');
+                        startPauseBtn.querySelector('.icon').textContent = '▶';
+                        startPauseBtn.querySelector('.txt').textContent = 'Start';
+                        cancelAnimationFrame(animFrame);
+                        updateDisplay();
+                }
 
-// Always-on-top checkbox (toggled via menu in main; here we mirror preference)
-alwaysOnTopEl.addEventListener('change', () => {
-  // We can't call BrowserWindow APIs here securely; a simple approach is to use the menu checkbox in main.
-  // This checkbox is just a visual hint; you can wire this via another IPC if desired.
-});
+                function clearLaps() {
+                        lapTimes = [];
+                        renderLaps();
+                }
 
-restore();
-render();
+                // Event listeners
+                startPauseBtn.addEventListener('click', toggleStartPause);
+                lapBtn.addEventListener('click', recordLap);
+                resetBtn.addEventListener('click', reset);
+                clearLapsBtn.addEventListener('click', clearLaps);
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                        if (e.code === 'Space') {
+                                e.preventDefault();
+                                toggleStartPause();
+                        } else if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+                                e.preventDefault();
+                                recordLap();
+                        }
+                });
+
+                // Initialize display
+                updateDisplay();
